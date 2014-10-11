@@ -201,10 +201,10 @@ void dda_create(DDA *dda, TARGET *target) {
   micrometers = (target->axis[X] - startpoint.axis[X]) -
                 (target->axis[Y] - startpoint.axis[Y]);
   delta_um[Y] = (uint32_t)abs32(micrometers);
-  set_direction(dda, X, micrometers > 0 ? 1 : 0);
+  set_direction(dda, Y, micrometers > 0 ? 1 : 0);
   steps = um_to_steps(target->axis[X] - target->axis[Y], Y);
   dda->delta[Y] = abs32(steps - startpoint_steps.axis[Y]);
-  startpoint_steps.axis[X] = steps;
+  startpoint_steps.axis[Y] = steps;
 
   #include "delay.h"
   sersendf_P(PSTR("From: X %ld  Y %ld\n"), startpoint.axis[X], startpoint.axis[Y]);
