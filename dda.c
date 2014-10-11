@@ -189,13 +189,13 @@ void dda_create(DDA *dda, TARGET *target) {
     dda->id = idcnt++;
   #endif
 
-  delta_um[X] = target->axis[X] - startpoint.axis[X] +
-                target->axis[Y] - startpoint.axis[Y];
+  delta_um[X] = (uint32_t)abs32((target->axis[X] - startpoint.axis[X]) +
+                                (target->axis[Y] - startpoint.axis[Y]));
   steps = um_to_steps(target->axis[X], X);
   dda->delta[X] = abs32(steps - startpoint_steps.axis[X]);
   startpoint_steps.axis[X] = steps;
-  delta_um[Y] = target->axis[Y] - startpoint.axis[Y] +
-                target->axis[X] - startpoint.axis[X];
+  delta_um[Y] = (uint32_t)abs32((target->axis[X] - startpoint.axis[X]) -
+                                (target->axis[Y] - startpoint.axis[Y]));
   steps = um_to_steps(target->axis[Y], Y);
   dda->delta[Y] = abs32(steps - startpoint_steps.axis[Y]);
   startpoint_steps.axis[X] = steps;
