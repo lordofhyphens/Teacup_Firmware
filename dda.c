@@ -155,6 +155,7 @@ void dda_new_startpoint(void) {
  *    already.
  */
 void dda_create(DDA *dda, TARGET *target) {
+  int32_t micrometers;
   uint32_t steps;
   axes_uint32_t delta_um;
 	uint32_t	distance, c_limit, c_limit_calc;
@@ -189,28 +190,31 @@ void dda_create(DDA *dda, TARGET *target) {
     dda->id = idcnt++;
   #endif
 
-  delta_um[X] = (uint32_t)abs32((target->axis[X] - startpoint.axis[X]) +
-                                (target->axis[Y] - startpoint.axis[Y]));
+  micrometers = (target->axis[X] - startpoint.axis[X]) +
+                (target->axis[Y] - startpoint.axis[Y]);
+  delta_um[X] = (uint32_t)abs32(micrometers);
+  set_direction(dda, X, micrometers > 0 ? 1 : 0);
   steps = um_to_steps(target->axis[X] + target->axis[Y], X);
   dda->delta[X] = abs32(steps - startpoint_steps.axis[X]);
   startpoint_steps.axis[X] = steps;
-  delta_um[Y] = (uint32_t)abs32((target->axis[X] - startpoint.axis[X]) -
-                                (target->axis[Y] - startpoint.axis[Y]));
+
+  micrometers = (target->axis[X] - startpoint.axis[X]) -
+                (target->axis[Y] - startpoint.axis[Y]);
+  delta_um[Y] = (uint32_t)abs32(micrometers);
+  set_direction(dda, X, micrometers > 0 ? 1 : 0);
   steps = um_to_steps(target->axis[X] - target->axis[Y], Y);
   dda->delta[Y] = abs32(steps - startpoint_steps.axis[Y]);
   startpoint_steps.axis[X] = steps;
 
-  set_direction(dda, X, /* needs change -> */(target->axis[X] >= startpoint.axis[X])?1:0);
-  set_direction(dda, X, /* needs change -> */(target->axis[Y] >= startpoint.axis[Y])?1:0);
-
+  #include "delay.h"
   sersendf_P(PSTR("From: X %ld  Y %ld\n"), startpoint.axis[X], startpoint.axis[Y]);
   sersendf_P(PSTR("To:   X %ld  Y %ld\n"), target->axis[X], target->axis[Y]);
   delay_ms(10);
-  sersendf_P(PSTR("um on stepper 0:  %lu\n"), delta_um[X]);
-  sersendf_P(PSTR("um on stepper 1:  %lu\n"), delta_um[Y]);
+  sersendf_P(PSTR("um on stepper 0:  %c%lu\n"), dda->x_direction ? '+' : '-', delta_um[X]);
+  sersendf_P(PSTR("um on stepper 1:  %c%lu\n"), dda->y_direction ? '+' : '-', delta_um[Y]);
   delay_ms(10);
-  sersendf_P(PSTR("steps on stepper 0:  %lu\n"), dda->delta[X]);
-  sersendf_P(PSTR("steps on stepper 1:  %lu\n"), dda->delta[Y]);
+  sersendf_P(PSTR("steps on stepper 0:  %c%lu\n"), dda->x_direction ? '+' : '-', dda->delta[X]);
+  sersendf_P(PSTR("steps on stepper 1:  %c%lu\n"), dda->y_direction ? '+' : '-', dda->delta[Y]);
   delay_ms(10);
 
   for (i = Z; i < (target->e_relative ? E : AXIS_COUNT); i++) {
