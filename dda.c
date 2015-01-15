@@ -13,6 +13,7 @@
 
 #include	"dda_maths.h"
 #include "preprocessor_math.h"
+#include "dda_kinematics.h"
 #include	"dda_lookahead.h"
 #include	"timer.h"
 #include	"serial.h"
@@ -29,8 +30,6 @@
 	#include	"heater.h"
 #endif
 
-/* 32-bit-specific abs fn coerces argument to 32-bit signed value first */
-#define abs32(x) labs((int32_t)(x))
 
 /*
 	position tracking
@@ -83,7 +82,9 @@ static const axes_uint32_t PROGMEM c0_P = {
 
 /*! Set the direction of the 'n' axis
 */
-static void set_direction(DDA *dda, enum axis_e n, int dir) {
+static void set_direction(DDA *dda, enum axis_e n, int32_t delta) {
+  uint8_t dir = (delta >= 0) ? 1 : 0;
+
   if (n == X)
     dda->x_direction = dir;
   else if (n == Y)
@@ -155,8 +156,8 @@ void dda_new_startpoint(void) {
  *    already.
  */
 void dda_create(DDA *dda, TARGET *target) {
-  uint32_t steps;
   axes_uint32_t delta_um;
+  axes_int32_t steps;
 	uint32_t	distance, c_limit, c_limit_calc;
   enum axis_e i;
   #ifdef LOOKAHEAD
@@ -189,29 +190,52 @@ void dda_create(DDA *dda, TARGET *target) {
     dda->id = idcnt++;
   #endif
 
-  for (i = X; i < (target->e_relative ? E : AXIS_COUNT); i++) {
-    delta_um[i] = (uint32_t)abs32(target->axis[i] - startpoint.axis[i]);
+  code_axes_to_stepper_axes(&startpoint, target, delta_um, steps);
+  for (i = X; i < E; i++) {
+    int32_t delta_steps;
 
-    steps = um_to_steps(target->axis[i], i);
-    dda->delta[i] = abs32(steps - startpoint_steps.axis[i]);
-    startpoint_steps.axis[i] = steps;
+    delta_steps = steps[i] - startpoint_steps.axis[i];
+    dda->delta[i] = (uint32_t)labs(delta_steps);
+    startpoint_steps.axis[i] = steps[i];
 
-    set_direction(dda, i, (target->axis[i] >= startpoint.axis[i])?1:0);
+    set_direction(dda, i, delta_steps);
     #ifdef LOOKAHEAD
       // Also displacements in micrometers, but for the lookahead alogrithms.
       // TODO: this is redundant. delta_um[] and dda->delta_um[] differ by
       //       just signedness and storage location. Ideally, dda is used
       //       as storage place only if neccessary (LOOKAHEAD turned on?)
       //       because this space is multiplied by the movement queue size.
-      dda->delta_um[i] = target->axis[i] - startpoint.axis[i];
+      dda->delta_um[i] = (delta_steps >= 0) ?
+                         (int32_t)delta_um[i] : -(int32_t)delta_um[i];
     #endif
   }
 
-	if (target->e_relative) {
+  if ( ! target->e_relative) {
+    int32_t delta_steps;
+
+    delta_um[E] = (uint32_t)labs(target->axis[E] - startpoint.axis[E]);
+    steps[E] = um_to_steps(target->axis[E], E);
+
+    delta_steps = steps[E] - startpoint_steps.axis[E];
+    dda->delta[E] = (uint32_t)labs(delta_steps);
+    startpoint_steps.axis[E] = steps[E];
+
+    set_direction(dda, E, delta_steps);
+    #ifdef LOOKAHEAD
+      // Also displacements in micrometers, but for the lookahead alogrithms.
+      // TODO: this is redundant. delta_um[] and dda->delta_um[] differ by
+      //       just signedness and storage location. Ideally, dda is used
+      //       as storage place only if neccessary (LOOKAHEAD turned on?)
+      //       because this space is multiplied by the movement queue size.
+      dda->delta_um[E] = (delta_steps >= 0) ?
+                         (int32_t)delta_um[E] : -(int32_t)delta_um[E];
+    #endif
+  }
+  else {
     // When we get more extruder axes:
     // for (i = E; i < AXIS_COUNT; i++) { ...
-    delta_um[E] = abs32(target->axis[E]);
-    dda->delta[E] = abs32(um_to_steps(target->axis[E], E));
+    delta_um[E] = (uint32_t)labs(target->axis[E]);
+    dda->delta[E] = (uint32_t)labs(um_to_steps(target->axis[E], E));
     #ifdef LOOKAHEAD
       dda->delta_um[E] = target->axis[E];
     #endif
